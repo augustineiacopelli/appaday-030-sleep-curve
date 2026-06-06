@@ -48,3 +48,8 @@ The wake shortcut auto-submits the entry. Tap the ⚡ Shortcuts button inside th
 
 - Live app: https://augustineiacopelli.github.io/appaday-030-sleep-curve/
 - Portfolio: https://augustineiacopelli.github.io/appaday/
+
+## Future Updates
+
+- Today felt rushed and I'm sure there are better ways to run this that I should come back to when I have time.
+- I mainly wanted to make this as hands of as possible for tracking sleep patterns. AppADay hosting on GitHub probably isn't the best place to have this to make this the way I want it to be, but I wanted to shift gears to assisting my son with some game programming he wanted to be working on today.
