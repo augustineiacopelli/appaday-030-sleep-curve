@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>030 · Sleep Curve</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:      #0a0c14;
+    --deep:     #0f1220;
+    --mid:      #171c2e;
+    --surface:  #1e2438;
+    --edge:     #2a3050;
+    --mist:     #3d4a6e;
+    --silver:   #8892b0;
+    --cloud:    #c8cfe8;
+    --white:    #eef0f8;
+    --moon:     #e8dfc8;
+    --accent:   #6e9fff;
+    --accent2:  #a78bfa;
+    --good:     #7dd3a8;
+    --warn:     #f5c97a;
+    --bad:      #f47c7c;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--ink);
+    color: var(--white);
+    font-family: 'DM Mono', monospace;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 15% 20%, rgba(200,207,232,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 8%, rgba(200,207,232,0.3) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 72% 15%, rgba(200,207,232,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 88% 35%, rgba(200,207,232,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 55%, rgba(200,207,232,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 70%, rgba(200,207,232,0.3) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 10% 80%, rgba(200,207,232,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 95% 60%, rgba(200,207,232,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 90%, rgba(200,207,232,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 25% 42%, rgba(200,207,232,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 78% 88%, rgba(200,207,232,0.25) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 5% 5%, rgba(200,207,232,0.35) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Horizon glow */
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 200px;
+    background: linear-gradient(to top, rgba(110,159,255,0.04), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    margin-bottom: 48px;
+  }
+
+  .app-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    color: var(--mist);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .app-tag a {
+    color: var(--mist);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .app-tag a:hover { color: var(--accent); }
+
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(42px, 10vw, 64px);
+    font-weight: 300;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--moon);
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--silver);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--edge);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+
+  .stat {
+    background: var(--deep);
+    padding: 16px 20px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-val.good  { color: var(--good); }
+  .stat-val.warn  { color: var(--warn); }
+  .stat-val.bad   { color: var(--bad);  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--mist);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ── Chart area ── */
+  .chart-section {
+    background: var(--deep);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    padding: 28px 24px 24px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chart-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent2), var(--accent), transparent);
+    opacity: 0.4;
+  }
+
+  .chart-title {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 20px;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    height: 200px;
+  }
+
+  canvas#sleepChart {
+    width: 100% !important;
+    height: 200px !important;
+    display: block;
+  }
+
+  .chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--mist);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .chart-empty .moon-icon {
+    font-size: 28px;
+    opacity: 0.4;
+  }
+
+  /* ── Entry form ── */
+  .entry-form {
+    background: var(--deep);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .form-header {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    margin-bottom: 20px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--silver);
+  }
+
+  .field input[type="date"],
+  .field input[type="time"] {
+    background: var(--surface);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    color: var(--white);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 10px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    color-scheme: dark;
+    min-font-size: 16px;
+  }
+
+  .field input:focus {
+    border-color: var(--accent);
+  }
+
+  .btn-add {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none;
+    border-radius: 6px;
+    color: var(--white);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  .btn-add:hover { opacity: 0.9; }
+  .btn-add:active { transform: scale(0.98); }
+
+  /* ── Log table ── */
+  .log-section {
+    background: var(--deep);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .log-header {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+    gap: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--edge);
+    padding: 10px 20px;
+  }
+
+  .log-header span {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mist);
+  }
+
+  .log-body {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .log-body::-webkit-scrollbar { width: 3px; }
+  .log-body::-webkit-scrollbar-track { background: transparent; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 2px; }
+
+  .log-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+    gap: 0;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(42,48,80,0.5);
+    align-items: center;
+    transition: background 0.15s;
+  }
+
+  .log-row:last-child { border-bottom: none; }
+  .log-row:hover { background: rgba(255,255,255,0.02); }
+
+  .log-row .date-col {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--cloud);
+  }
+
+  .log-row .time-col {
+    font-size: 11px;
+    color: var(--silver);
+  }
+
+  .log-row .dur-col {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .log-row .dur-col.good  { color: var(--good); }
+  .log-row .dur-col.warn  { color: var(--warn); }
+  .log-row .dur-col.bad   { color: var(--bad);  }
+
+  .log-row .rating-col {
+    font-size: 14px;
+  }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--mist);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    transition: color 0.15s;
+    line-height: 1;
+  }
+
+  .del-btn:hover { color: var(--bad); }
+
+  .log-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--mist);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    color: var(--silver);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .shortcuts-btn {
+    background: none;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    color: var(--mist);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .shortcuts-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Mobile adjustments */
+  @media (max-width: 480px) {
+    .form-row {
+      grid-template-columns: 1fr 1fr;
+    }
+    .form-row .btn-wrap {
+      grid-column: 1 / -1;
+    }
+    .log-header,
+    .log-row {
+      grid-template-columns: 1.2fr 1fr 0.8fr auto;
+    }
+    .log-header span:nth-child(3),
+    .log-row .time-col:last-of-type { display: none; }
+    .log-row .rating-col { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="header">
+    <div class="app-tag">
+      <a href="https://augustineiacopelli.github.io/appaday/">AppADay</a>
+      &nbsp;·&nbsp; 030 &nbsp;·&nbsp; Data Viz
+    </div>
+    <h1>Sleep<br><em>Curve</em></h1>
+    <div class="subtitle">Seven nights · one line</div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat">
+      <div class="stat-val" id="statAvg">—</div>
+      <div class="stat-label">Avg hrs</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="statBest">—</div>
+      <div class="stat-label">Best night</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="statStreak">—</div>
+      <div class="stat-label">7+ hr nights</div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-section">
+    <div class="chart-title">Sleep duration — hours per night</div>
+    <div class="chart-canvas-wrap">
+      <canvas id="sleepChart"></canvas>
+      <div class="chart-empty" id="chartEmpty">
+        <span class="moon-icon">🌙</span>
+        <span>Log your first night to begin</span>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Duration</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(167,139,250,0.6)"></div> 7-hr target</div>
+    </div>
+  </div>
+
+  <!-- Entry form -->
+  <div class="entry-form">
+    <div class="form-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Log a night</span>
+      <button onclick="showShortcutHelp()" class="shortcuts-btn">⚡ Shortcuts</button>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Date (wake)</label>
+        <input type="date" id="inputDate">
+      </div>
+      <div class="field">
+        <label>Bedtime</label>
+        <input type="time" id="inputBed" value="22:30">
+      </div>
+      <div class="field">
+        <label>Wake time</label>
+        <input type="time" id="inputWake" value="06:30">
+      </div>
+      <div class="field btn-wrap">
+        <label>&nbsp;</label>
+        <button class="btn-add" id="btnAdd" onclick="addEntry()">+ Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log table -->
+  <div class="log-section">
+    <div class="log-header">
+      <span>Date</span>
+      <span>Bedtime</span>
+      <span>Wake</span>
+      <span>Duration</span>
+      <span></span>
+    </div>
+    <div class="log-body" id="logBody">
+      <div class="log-empty" id="logEmpty">No entries yet</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Shortcuts Modal -->
+<div id="shortcutModal" style="display:none;position:fixed;inset:0;background:rgba(10,12,20,0.85);z-index:100;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--deep);border:1px solid var(--edge);border-radius:16px;max-width:520px;width:100%;padding:32px;position:relative;">
+    <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent2),var(--accent),transparent);opacity:0.5;border-radius:16px 16px 0 0;"></div>
+    <button onclick="closeModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--mist);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--white);margin-bottom:4px;">iOS Shortcuts</div>
+    <div style="font-size:10px;color:var(--mist);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:24px;">One-tap sleep logging</div>
+
+    <div style="font-size:11px;color:var(--silver);line-height:1.8;margin-bottom:20px;">Create two Shortcuts in the iOS Shortcuts app. Each one opens a URL — the app reads the params and logs the entry automatically.</div>
+
+    <div style="background:var(--surface);border:1px solid var(--edge);border-radius:8px;padding:16px;margin-bottom:16px;">
+      <div style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">🌙 Bedtime Shortcut</div>
+      <div style="font-size:10px;color:var(--silver);line-height:1.7;">Action: <span style="color:var(--cloud);">Open URLs</span><br>URL: <span style="color:var(--accent);font-family:'DM Mono',monospace;word-break:break-all;" id="urlBedExample"></span><br><span style="color:var(--mist);font-size:9px;">Replace 22:30 with the <em>current time</em> variable from Shortcuts.</span></div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--edge);border-radius:8px;padding:16px;margin-bottom:20px;">
+      <div style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--good);margin-bottom:8px;">☀️ Wake Shortcut</div>
+      <div style="font-size:10px;color:var(--silver);line-height:1.7;">Action: <span style="color:var(--cloud);">Open URLs</span><br>URL: <span style="color:var(--accent);font-family:'DM Mono',monospace;word-break:break-all;" id="urlWakeExample"></span><br><span style="color:var(--mist);font-size:9px;">Replace 06:30 with the <em>current time</em> variable. This shortcut logs the night.</span></div>
+    </div>
+
+    <div style="font-size:10px;color:var(--mist);line-height:1.7;margin-bottom:20px;">The wake shortcut passes both times because the app needs both to calculate duration. Set bedtime in a <span style="color:var(--cloud);">Text</span> variable in your Shortcuts flow so the wake shortcut can reference it, or hardcode your typical bedtime as a starting point.</div>
+
+    <div style="background:var(--surface);border:1px solid var(--edge);border-radius:8px;padding:12px;margin-bottom:20px;">
+      <div style="font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--mist);margin-bottom:6px;">Full URL format</div>
+      <div id="urlExample" style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;word-break:break-all;"></div>
+    </div>
+
+    <button onclick="closeModal()" style="background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:8px;color:var(--white);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;cursor:pointer;width:100%;">Got it</button>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'appaday_030_sleep';
+let entries = [];
+
+try {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) entries = JSON.parse(raw);
+} catch(e) { entries = []; }
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch(e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function parseDuration(bedStr, wakeStr) {
+  const [bh, bm] = bedStr.split(':').map(Number);
+  const [wh, wm] = wakeStr.split(':').map(Number);
+  let bedMins  = bh * 60 + bm;
+  let wakeMins = wh * 60 + wm;
+  if (wakeMins <= bedMins) wakeMins += 1440; // crossed midnight
+  return (wakeMins - bedMins) / 60;
+}
+
+function fmtDur(h) {
+  const hrs  = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
+}
+
+function durClass(h) {
+  if (h >= 7)   return 'good';
+  if (h >= 6)   return 'warn';
+  return 'bad';
+}
+
+function durEmoji(h) {
+  if (h >= 8)   return '✦';
+  if (h >= 7)   return '◉';
+  if (h >= 6)   return '◎';
+  return '○';
+}
+
+function fmtDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function fmtTime(t) {
+  const [h, m] = t.split(':').map(Number);
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2,'0')} ${suffix}`;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderChart();
+  renderLog();
+}
+
+function renderStats() {
+  const avEl  = document.getElementById('statAvg');
+  const bsEl  = document.getElementById('statBest');
+  const skEl  = document.getElementById('statStreak');
+
+  if (entries.length === 0) {
+    avEl.textContent = bsEl.textContent = skEl.textContent = '—';
+    avEl.className = bsEl.className = skEl.className = 'stat-val';
+    return;
+  }
+
+  const durs   = entries.map(e => e.duration);
+  const avg    = durs.reduce((a,b) => a + b, 0) / durs.length;
+  const best   = Math.max(...durs);
+  const streak = durs.filter(d => d >= 7).length;
+
+  avEl.textContent = fmtDur(avg);
+  avEl.className   = 'stat-val ' + durClass(avg);
+
+  bsEl.textContent = fmtDur(best);
+  bsEl.className   = 'stat-val ' + durClass(best);
+
+  skEl.textContent = streak;
+  skEl.className   = 'stat-val ' + (streak >= entries.length * 0.7 ? 'good' : streak > 0 ? 'warn' : 'bad');
+}
+
+// ── Chart (hand-drawn SVG line) ────────────────────────────────────────────
+function renderChart() {
+  const canvas  = document.getElementById('sleepChart');
+  const empty   = document.getElementById('chartEmpty');
+  const sorted  = [...entries].sort((a,b) => a.date.localeCompare(b.date));
+  const recent  = sorted.slice(-7);
+
+  if (recent.length === 0) {
+    canvas.style.display = 'none';
+    empty.style.display  = 'flex';
+    return;
+  }
+
+  empty.style.display  = 'none';
+  canvas.style.display = 'block';
+
+  const W = canvas.parentElement.clientWidth;
+  const H = 200;
+  canvas.width  = W;
+  canvas.height = H;
+
+  const ctx   = canvas.getContext('2d');
+  const dpr   = window.devicePixelRatio || 1;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad    = { top: 10, right: 20, bottom: 36, left: 38 };
+  const cw     = W - pad.left - pad.right;
+  const ch     = H - pad.top  - pad.bottom;
+
+  const minH   = 4;
+  const maxH   = 10;
+  const target = 7;
+
+  // Grid lines
+  [4, 5, 6, 7, 8, 9, 10].forEach(h => {
+    const y = pad.top + ch - ((h - minH) / (maxH - minH)) * ch;
+    ctx.beginPath();
+    ctx.strokeStyle = h === target ? 'rgba(167,139,250,0.25)' : 'rgba(42,48,80,0.6)';
+    ctx.lineWidth   = h === target ? 1.5 : 0.5;
+    if (h === target) ctx.setLineDash([4, 6]);
+    else ctx.setLineDash([]);
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + cw, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Y labels
+    ctx.fillStyle = h === target ? 'rgba(167,139,250,0.7)' : 'rgba(136,146,176,0.5)';
+    ctx.font      = `${10 / dpr + 10}px "DM Mono", monospace`;
+    ctx.font      = '10px "DM Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${h}h`, pad.left - 6, y + 4);
+  });
+
+  const n       = recent.length;
+  const xStep   = n === 1 ? cw / 2 : cw / (n - 1);
+
+  function xOf(i) { return pad.left + (n === 1 ? cw / 2 : i * xStep); }
+  function yOf(d) { return pad.top + ch - ((d - minH) / (maxH - minH)) * ch; }
+
+  // Area fill
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, 'rgba(110,159,255,0.25)');
+  grad.addColorStop(1, 'rgba(110,159,255,0)');
+
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(recent[0].duration));
+  for (let i = 1; i < n; i++) {
+    const x0 = xOf(i-1), y0 = yOf(recent[i-1].duration);
+    const x1 = xOf(i),   y1 = yOf(recent[i].duration);
+    const cpx = (x0 + x1) / 2;
+    ctx.bezierCurveTo(cpx, y0, cpx, y1, x1, y1);
+  }
+  ctx.lineTo(xOf(n-1), pad.top + ch);
+  ctx.lineTo(xOf(0),   pad.top + ch);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(recent[0].duration));
+  for (let i = 1; i < n; i++) {
+    const x0 = xOf(i-1), y0 = yOf(recent[i-1].duration);
+    const x1 = xOf(i),   y1 = yOf(recent[i].duration);
+    const cpx = (x0 + x1) / 2;
+    ctx.bezierCurveTo(cpx, y0, cpx, y1, x1, y1);
+  }
+  ctx.strokeStyle = 'rgba(110,159,255,0.9)';
+  ctx.lineWidth   = 2;
+  ctx.lineJoin    = 'round';
+  ctx.stroke();
+
+  // Dots
+  recent.forEach((e, i) => {
+    const x = xOf(i);
+    const y = yOf(e.duration);
+    const cls = durClass(e.duration);
+    const color = cls === 'good' ? '#7dd3a8' : cls === 'warn' ? '#f5c97a' : '#f47c7c';
+
+    // Outer glow
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = color.replace(')', ', 0.15)').replace('rgb', 'rgba').replace('#', '').includes('rgba')
+      ? color + '26'
+      : color + '26';
+    ctx.fillStyle = color + '30';
+    ctx.fill();
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // X axis label
+    const [yr, mo, dy] = e.date.split('-').map(Number);
+    const dt = new Date(yr, mo - 1, dy);
+    const label = dt.toLocaleDateString('en-US', { weekday: 'short' }).slice(0,2).toUpperCase();
+    ctx.fillStyle = 'rgba(136,146,176,0.7)';
+    ctx.font      = '9px "DM Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, H - pad.bottom + 14);
+
+    // Duration label above dot
+    ctx.fillStyle = 'rgba(200,207,232,0.8)';
+    ctx.font      = '9px "DM Mono", monospace';
+    ctx.fillText(fmtDur(e.duration), x, y - 10);
+  });
+}
+
+function renderLog() {
+  const body  = document.getElementById('logBody');
+  const empty = document.getElementById('logEmpty');
+  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date));
+
+  if (sorted.length === 0) {
+    body.innerHTML = '';
+    body.appendChild(empty);
+    empty.style.display = 'block';
+    return;
+  }
+
+  body.innerHTML = sorted.map(e => `
+    <div class="log-row">
+      <div class="date-col">${fmtDate(e.date)}</div>
+      <div class="time-col">${fmtTime(e.bed)}</div>
+      <div class="time-col">${fmtTime(e.wake)}</div>
+      <div class="dur-col ${durClass(e.duration)}">${fmtDur(e.duration)}</div>
+      <button class="del-btn" onclick="deleteEntry('${e.id}')" title="Delete">×</button>
+    </div>
+  `).join('');
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+function addEntry() {
+  const dateEl = document.getElementById('inputDate');
+  const bedEl  = document.getElementById('inputBed');
+  const wakeEl = document.getElementById('inputWake');
+
+  const date = dateEl.value;
+  const bed  = bedEl.value;
+  const wake = wakeEl.value;
+
+  if (!date || !bed || !wake) {
+    shake(document.getElementById('btnAdd'));
+    return;
+  }
+
+  const duration = parseDuration(bed, wake);
+  if (duration <= 0 || duration > 20) {
+    shake(document.getElementById('btnAdd'));
+    return;
+  }
+
+  // Prevent duplicate dates
+  if (entries.find(e => e.date === date)) {
+    const existing = entries.find(e => e.date === date);
+    existing.bed = bed;
+    existing.wake = wake;
+    existing.duration = duration;
+  } else {
+    entries.push({
+      id: Date.now().toString(),
+      date, bed, wake, duration
+    });
+  }
+
+  save();
+  render();
+
+  // Advance date by 1
+  const d = new Date(date + 'T12:00:00');
+  d.setDate(d.getDate() + 1);
+  dateEl.value = d.toISOString().slice(0, 10);
+}
+
+function deleteEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  save();
+  render();
+}
+
+function shake(el) {
+  el.style.transform = 'translateX(-4px)';
+  setTimeout(() => el.style.transform = 'translateX(4px)', 80);
+  setTimeout(() => el.style.transform = 'translateX(0)', 160);
+}
+
+// ── URL Param Handler ──────────────────────────────────────────────────────
+// Supports: ?bed=22:30&wake=06:45&date=2026-06-07&log=1
+// If log=1 is present, auto-submits immediately (for Shortcuts automation)
+// If bed= or wake= present without log=1, pre-fills form fields only
+function handleURLParams() {
+  const params = new URLSearchParams(window.location.search);
+  const bed    = params.get('bed');
+  const wake   = params.get('wake');
+  const date   = params.get('date');
+  const autoLog = params.get('log') === '1';
+
+  const today = new Date();
+  const yyyy  = today.getFullYear();
+  const mm    = String(today.getMonth() + 1).padStart(2,'0');
+  const dd    = String(today.getDate()).padStart(2,'0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+
+  // Set date field — use param, fall back to today
+  document.getElementById('inputDate').value = date || todayStr;
+
+  if (bed)  document.getElementById('inputBed').value  = bed;
+  if (wake) document.getElementById('inputWake').value = wake;
+
+  // Auto-submit if ?log=1 and both times are present
+  if (autoLog && bed && wake) {
+    // Brief delay so the DOM is ready and user sees the flash
+    setTimeout(() => {
+      addEntry();
+      // Show a toast confirming auto-log
+      showToast('Night logged automatically ✦');
+      // Clean URL without reloading
+      window.history.replaceState({}, '', window.location.pathname);
+    }, 300);
+  }
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = `
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface); border: 1px solid var(--accent2);
+      color: var(--white); font-family: 'DM Mono', monospace;
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 12px 24px; border-radius: 100px;
+      opacity: 0; transition: opacity 0.3s, transform 0.3s;
+      z-index: 999; white-space: nowrap;
+      box-shadow: 0 4px 24px rgba(110,159,255,0.15);
+    `;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  requestAnimationFrame(() => {
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(-50%) translateY(20px)';
+  }, 3000);
+}
+
+// ── Shortcut Instructions Modal ────────────────────────────────────────────
+function showShortcutHelp() {
+  const appURL = window.location.href.split('?')[0];
+  document.getElementById('urlExample').textContent =
+    `${appURL}?bed=22:30&wake=06:30&log=1`;
+  document.getElementById('urlBedExample').textContent =
+    `${appURL}?bed=22:30`;
+  document.getElementById('urlWakeExample').textContent =
+    `${appURL}?bed=22:30&wake=06:30&log=1`;
+  document.getElementById('shortcutModal').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('shortcutModal').style.display = 'none';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(function init() {
+  // Default date = today (may be overridden by URL params)
+  const today = new Date();
+  const yyyy  = today.getFullYear();
+  const mm    = String(today.getMonth() + 1).padStart(2,'0');
+  const dd    = String(today.getDate()).padStart(2,'0');
+  document.getElementById('inputDate').value = `${yyyy}-${mm}-${dd}`;
+
+  render();
+  handleURLParams();
+
+  window.addEventListener('resize', () => renderChart());
+})();
+</script>
+</body>
+</html>
